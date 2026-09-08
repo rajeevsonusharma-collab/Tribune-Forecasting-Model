@@ -10,11 +10,6 @@ and a trend/seasonality decomposition view.
 Run with:
     streamlit run streamlit_app.py
 
-Expects these files in the same folder (all produced by
-tribune_forecasting_model.ipynb):
-    tribune_trust_synthetic_data.csv
-    models/sarima_<metric>.joblib   (optional — app fits live if missing)
-    model_comparison_metrics.csv    (optional — shown in the sidebar)
 Expects, in the same folder:
     tribune_trust_synthetic_data.csv   (required — or upload one in-app)
     models/sarima_<metric>.joblib      (optional — app fits live if missing)
@@ -22,7 +17,6 @@ Expects, in the same folder:
 
 import os
 import warnings
-from pathlib import Path
 
 import joblib
 import numpy as np
@@ -38,9 +32,8 @@ from statsmodels.tsa.statespace.sarimax import SARIMAX
 
 warnings.filterwarnings("ignore")
 
-APP_DIR = Path(__file__).resolve().parent
-DATA_PATH = APP_DIR / "tribune_trust_synthetic_data.csv"
-MODELS_DIR = APP_DIR / "models"
+DATA_PATH = "tribune_trust_synthetic_data.csv"
+MODELS_DIR = "models"
 REQUIRED_COLUMNS = [
     "Month",
     "Print_Circulation_Copies_Per_Day",
@@ -71,6 +64,157 @@ COLORS = {
 
 st.set_page_config(page_title="The Tribune Trust — Forecast Console", page_icon="📰", layout="wide")
 
+# ----------------------------------------------------------------------
+# Theme — fonts, masthead banner, KPI cards, chart chrome
+# ----------------------------------------------------------------------
+st.markdown(
+    f"""
+    <style>
+    @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap');
+
+    html, body, [class*="css"] {{ font-family: 'Inter', sans-serif; }}
+    .stApp {{ background-color: {COLORS['paper']}; }}
+
+    /* ---- masthead ---- */
+    .masthead {{
+        background: linear-gradient(135deg, {COLORS['ink']} 0%, #1F2340 100%);
+        border-radius: 14px;
+        padding: 28px 34px 22px 34px;
+        margin-bottom: 22px;
+        border-bottom: 4px solid {COLORS['gold']};
+    }}
+    .masthead h1 {{
+        font-family: 'Playfair Display', serif;
+        color: #FFFFFF;
+        font-size: 2.15rem;
+        font-weight: 800;
+        margin: 0;
+        letter-spacing: 0.2px;
+    }}
+    .masthead p {{
+        color: #C7CAE4;
+        font-size: 0.98rem;
+        margin: 6px 0 0 0;
+    }}
+
+    /* ---- sidebar wordmark chip ---- */
+    .sb-chip {{
+        background: {COLORS['ink']};
+        border-radius: 10px;
+        padding: 14px 16px;
+        margin-bottom: 16px;
+        border-left: 4px solid {COLORS['red']};
+    }}
+    .sb-chip h3 {{
+        font-family: 'Playfair Display', serif;
+        color: #FFFFFF;
+        font-size: 1.05rem;
+        margin: 0;
+    }}
+    .sb-chip span {{
+        color: #9EA3C4;
+        font-size: 0.78rem;
+    }}
+
+    /* ---- KPI cards ---- */
+    .kpi-card {{
+        background: {COLORS['card']};
+        border: 1px solid {COLORS['hairline']};
+        border-left: 5px solid var(--accent, {COLORS['red']});
+        border-radius: 10px;
+        padding: 14px 16px;
+        height: 100%;
+    }}
+    .kpi-label {{
+        color: {COLORS['soft']};
+        font-size: 0.8rem;
+        font-weight: 500;
+        margin-bottom: 4px;
+    }}
+    .kpi-value {{
+        font-size: 1.55rem;
+        font-weight: 700;
+        color: {COLORS['ink']};
+        line-height: 1.15;
+    }}
+    .kpi-sub {{
+        font-size: 0.78rem;
+        color: {COLORS['soft']};
+        margin-top: 3px;
+    }}
+
+    /* ---- tabs ---- */
+    .stTabs [data-baseweb="tab-list"] {{ gap: 6px; }}
+    .stTabs [data-baseweb="tab"] {{
+        font-weight: 600;
+        font-size: 0.95rem;
+        color: {COLORS['soft']};
+    }}
+    .stTabs [aria-selected="true"] {{
+        color: {COLORS['ink']} !important;
+        border-bottom-color: {COLORS['red']} !important;
+    }}
+
+    .note-box {{
+        background: #FFF7ED;
+        border: 1px solid #F3D9A8;
+        border-radius: 8px;
+        padding: 10px 14px;
+        font-size: 0.85rem;
+        color: {COLORS['ink']};
+    }}
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+
+# ----------------------------------------------------------------------
+# Access control — simple shared-password gate
+# ----------------------------------------------------------------------
+def _configured_password():
+    try:
+        pw = st.secrets.get("APP_PASSWORD")
+    except Exception:
+        pw = None
+    return pw or os.environ.get("TRIBUNE_APP_PASSWORD")
+
+
+def require_password():
+    if st.session_state.get("authed"):
+        return
+
+    st.markdown(
+        """
+        <div class="masthead" style="max-width:440px;margin:70px auto 18px auto;">
+            <h1 style="font-size:1.5rem;">📰 The Tribune Trust</h1>
+            <p>Forecasting Console — sign in to continue</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    configured = _configured_password()
+    _, mid, _ = st.columns([1, 1.2, 1])
+    with mid:
+        pw = st.text_input("Password", type="password", label_visibility="collapsed", placeholder="Password", key="login_pw")
+        submitted = st.button("Enter", use_container_width=True)
+        if submitted:
+            if configured and pw == configured:
+                st.session_state["authed"] = True
+                st.rerun()
+            else:
+                st.error("Incorrect password.")
+        if not configured:
+            st.caption(
+                "No password is configured yet. Set `APP_PASSWORD` in `.streamlit/secrets.toml` "
+                "(recommended — see `secrets.toml.example`) or the `TRIBUNE_APP_PASSWORD` "
+                "environment variable to enable this gate."
+            )
+    st.stop()
+
+
+require_password()
+
 
 def kpi_card(label: str, value: str, sub: str, accent: str):
     st.markdown(
@@ -98,266 +242,6 @@ def style_fig(fig: go.Figure, title: str, y_title: str) -> go.Figure:
         margin=dict(t=55, l=10, r=10, b=10),
     )
     return fig
-
-st.markdown(
-    """
-    <style>
-    @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;600;700&display=swap');
-
-    :root {
-        --ink: #15343b;
-        --muted: #60757a;
-        --paper: #fffaf1;
-        --panel: #ffffff;
-        --teal: #087f8c;
-        --coral: #f05a3c;
-        --sun: #f6c453;
-        --line: #e7ddd0;
-    }
-
-    .stApp {
-        background:
-            radial-gradient(circle at 92% 2%, rgba(246, 196, 83, 0.28), transparent 24rem),
-            linear-gradient(135deg, #fffaf1 0%, #f4fbf8 48%, #fff7ee 100%);
-        color: var(--ink);
-    }
-
-    [data-testid="stSidebar"] {
-        background: linear-gradient(180deg, #123f46 0%, #0b6872 65%, #0b7f84 100%);
-        border-right: 0;
-    }
-
-    [data-testid="stSidebar"] * { color: #f7fffa; }
-    [data-testid="stSidebar"] [data-baseweb="select"] > div,
-    [data-testid="stSidebar"] [data-baseweb="popover"] {
-        background: rgba(255, 255, 255, 0.12);
-        border-color: rgba(255, 255, 255, 0.34);
-    }
-    [data-testid="stSidebar"] [data-testid="stFileUploaderDropzone"] {
-        border: 1px dashed rgba(255, 255, 255, 0.55);
-        background: rgba(255, 255, 255, 0.08);
-    }
-    [data-testid="stSidebar"] [data-testid="stDataFrame"] {
-        border: 1px solid rgba(255, 255, 255, 0.18);
-    }
-
-    .block-container { padding-top: 3rem; padding-bottom: 4rem; max-width: 1500px; }
-    h1, h2, h3 { color: var(--ink); font-family: 'Space Grotesk', sans-serif; letter-spacing: 0; }
-    h1 { font-size: clamp(2rem, 4vw, 4.25rem); line-height: 0.98; margin-bottom: 0.6rem; }
-    [data-testid="stMetric"] {
-        background: var(--panel);
-        border: 1px solid var(--line);
-        border-top: 5px solid var(--teal);
-        border-radius: 14px;
-        box-shadow: 0 12px 30px rgba(21, 52, 59, 0.08);
-        padding: 1.1rem 1.25rem;
-    }
-    [data-testid="stMetric"]:nth-child(2) { border-top-color: var(--coral); }
-    [data-testid="stMetric"]:nth-child(3) { border-top-color: var(--sun); }
-    [data-testid="stMetricLabel"] { color: var(--muted); font-family: 'DM Mono', monospace; text-transform: uppercase; font-size: 0.7rem; }
-    [data-testid="stMetricValue"] { color: var(--ink); font-family: 'Space Grotesk', sans-serif; }
-    [data-testid="stDownloadButton"] button {
-        background: var(--coral);
-        border: 0;
-        border-radius: 999px;
-        color: #fff;
-        font-weight: 700;
-        padding: 0.7rem 1.2rem;
-    }
-    [data-testid="stDownloadButton"] button:hover { background: #d9472c; color: #fff; }
-    [data-testid="stTextInput"] input {
-        background: #fff7ed;
-        border: 1px solid #f3d9a8;
-        border-radius: 8px;
-    }
-    [data-testid="stFormSubmitButton"] button {
-        background: #e63946;
-        border: 0;
-        color: #fff;
-        font-weight: 700;
-    }
-    [data-testid="stFormSubmitButton"] button:hover {
-        background: #bd2633;
-        color: #fff;
-    }
-    [data-testid="stDataFrame"] { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
-    [data-testid="stExpander"] { border: 1px solid var(--line); border-radius: 12px; background: rgba(255, 255, 255, 0.58); }
-    .eyebrow {
-        color: var(--coral);
-        font-family: 'DM Mono', monospace;
-        font-size: 0.75rem;
-        font-weight: 500;
-        letter-spacing: 0.12em;
-        text-transform: uppercase;
-        margin-bottom: 0.85rem;
-    }
-    .masthead-note { color: var(--muted); font-size: 1rem; margin-bottom: 2rem; }
-    .login-page {
-        max-width: 1120px;
-        margin: 3vh auto 0;
-    }
-    .login-visual {
-        min-height: 455px;
-        padding: 2.5rem;
-        border-radius: 18px;
-        color: #fff;
-        overflow: hidden;
-        position: relative;
-        background: linear-gradient(145deg, #14162a 0%, #242849 70%, #263e59 100%);
-        box-shadow: 0 22px 55px rgba(20, 22, 42, 0.2);
-    }
-    .login-visual::after {
-        content: "";
-        position: absolute;
-        width: 230px;
-        height: 230px;
-        right: -74px;
-        top: -76px;
-        border: 1px solid rgba(242, 169, 0, 0.45);
-        border-radius: 50%;
-        box-shadow: 0 0 0 22px rgba(242, 169, 0, 0.05), 0 0 0 44px rgba(242, 169, 0, 0.04);
-    }
-    .login-kicker {
-        color: #f2a900;
-        font-family: 'DM Mono', monospace;
-        font-size: 0.72rem;
-        letter-spacing: 0.14em;
-        text-transform: uppercase;
-    }
-    .news-masthead {
-        display: flex;
-        align-items: end;
-        justify-content: space-between;
-        gap: 1rem;
-        padding-bottom: 0.8rem;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.24);
-    }
-    .news-brand {
-        color: #fff;
-        font-family: 'Playfair Display', serif;
-        font-size: clamp(1.55rem, 3vw, 2.2rem);
-        font-weight: 800;
-        letter-spacing: 0.02em;
-        line-height: 1;
-    }
-    .news-edition {
-        color: #c7cae4;
-        font-family: 'DM Mono', monospace;
-        font-size: 0.62rem;
-        letter-spacing: 0.08em;
-        line-height: 1.5;
-        text-align: right;
-        text-transform: uppercase;
-    }
-    .news-rule {
-        display: flex;
-        justify-content: space-between;
-        color: #9ea3c4;
-        font-family: 'DM Mono', monospace;
-        font-size: 0.62rem;
-        letter-spacing: 0.08em;
-        margin-top: 0.7rem;
-        text-transform: uppercase;
-    }
-    .login-visual h2 {
-        color: #fff;
-        font-family: 'Playfair Display', serif;
-        font-size: clamp(2rem, 4vw, 3.6rem);
-        line-height: 1.02;
-        margin: 1.1rem 0 0.8rem;
-        max-width: 440px;
-    }
-    .login-visual p { color: #c7cae4; max-width: 390px; line-height: 1.6; }
-    .signal-chart {
-        height: 130px;
-        display: flex;
-        align-items: end;
-        gap: 9px;
-        margin-top: 2.4rem;
-        padding: 1rem 0 0;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.2);
-    }
-    .signal-chart span {
-        flex: 1;
-        min-width: 12px;
-        border-radius: 5px 5px 0 0;
-        background: linear-gradient(180deg, #f2a900, #e63946);
-        opacity: 0.9;
-    }
-    .signal-chart span:nth-child(2n) { background: linear-gradient(180deg, #1fb6a6, #167b8a); }
-    .signal-chart span:nth-child(1) { height: 32%; }
-    .signal-chart span:nth-child(2) { height: 44%; }
-    .signal-chart span:nth-child(3) { height: 39%; }
-    .signal-chart span:nth-child(4) { height: 60%; }
-    .signal-chart span:nth-child(5) { height: 55%; }
-    .signal-chart span:nth-child(6) { height: 76%; }
-    .signal-chart span:nth-child(7) { height: 68%; }
-    .signal-chart span:nth-child(8) { height: 94%; }
-    .signal-caption {
-        display: flex;
-        justify-content: space-between;
-        margin-top: 0.55rem;
-        color: #9ea3c4;
-        font-family: 'DM Mono', monospace;
-        font-size: 0.66rem;
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-    }
-    .signal-summary {
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 0.6rem;
-        margin-top: 1.25rem;
-    }
-    .signal-summary div {
-        padding: 0.7rem 0.75rem;
-        border: 1px solid rgba(255, 255, 255, 0.16);
-        border-radius: 9px;
-        background: rgba(255, 255, 255, 0.06);
-    }
-    .signal-summary strong {
-        display: block;
-        color: #fff;
-        font-size: 1.1rem;
-    }
-    .signal-summary span {
-        color: #9ea3c4;
-        font-family: 'DM Mono', monospace;
-        font-size: 0.62rem;
-        text-transform: uppercase;
-    }
-    .field-label {
-        color: #6b7099;
-        font-family: 'DM Mono', monospace;
-        font-size: 0.7rem;
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-    }
-    .login-form-panel {
-        min-height: 455px;
-        padding: 2.5rem 2.2rem;
-        border: 1px solid #e7e1d3;
-        border-radius: 18px;
-        background: rgba(255, 255, 255, 0.82);
-        box-shadow: 0 22px 55px rgba(20, 22, 42, 0.08);
-    }
-    .login-form-panel h1 { font-size: clamp(2rem, 4vw, 3.25rem); }
-    .welcome-message {
-        margin: -0.15rem 0 0.8rem;
-        color: #15343b;
-        font-size: 0.98rem;
-        line-height: 1.5;
-    }
-    .welcome-message strong { color: #e63946; }
-    @media (max-width: 760px) {
-        .login-page { margin-top: 1rem; }
-        .login-visual, .login-form-panel { min-height: auto; padding: 1.7rem; }
-        .signal-chart { margin-top: 1.6rem; }
-    }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
 
 
 # ----------------------------------------------------------------------
@@ -673,7 +557,7 @@ with tab_forecast:
                 pass
 
     fig = style_fig(fig, f"{label} — history & {horizon}-month forecast", f"{label} ({unit})")
-    st.plotly_chart(fig, width="stretch")
+    st.plotly_chart(fig, use_container_width=True)
 
     st.subheader("Forecast table")
     forecast_table = pd.DataFrame({
@@ -682,7 +566,7 @@ with tab_forecast:
         f"Lower ({confidence}%)": lower.values.round(1),
         f"Upper ({confidence}%)": upper.values.round(1),
     })
-    st.dataframe(forecast_table, hide_index=True, width="stretch")
+    st.dataframe(forecast_table, hide_index=True, use_container_width=True)
 
     csv_bytes = forecast_table.to_csv(index=False).encode("utf-8")
     st.download_button(
@@ -722,7 +606,7 @@ with tab_backtest:
             metrics_df.style.apply(
                 lambda r: ["background-color:#E8F7EF" if r["Model"] == best_model else "" for _ in r], axis=1
             ),
-            hide_index=True, width="stretch",
+            hide_index=True, use_container_width=True,
         )
         st.caption(f"✅ Lowest error on this window: **{best_model}**. MAPE = mean absolute % error, lower is better.")
 
@@ -737,7 +621,7 @@ with tab_backtest:
         for name, curve in curves.items():
             fig2.add_trace(go.Scatter(x=curve.index, y=curve.values, name=name, line=dict(color=palette.get(name, "#999"), width=2, dash="dot")))
         fig2 = style_fig(fig2, f"Holdout check — predicted vs. actual ({label})", f"{label} ({unit})")
-        st.plotly_chart(fig2, width="stretch")
+        st.plotly_chart(fig2, use_container_width=True)
 
 # ----------------------------------------------------------------------
 # TAB 3 — Trend & Seasonality
@@ -770,7 +654,7 @@ with tab_trend:
         )
         decomp_fig.update_xaxes(gridcolor=COLORS["hairline"])
         decomp_fig.update_yaxes(gridcolor=COLORS["hairline"])
-        st.plotly_chart(decomp_fig, width="stretch")
+        st.plotly_chart(decomp_fig, use_container_width=True)
 
         seasonal_swing = stl.seasonal.max() - stl.seasonal.min()
         st.caption(
@@ -783,7 +667,7 @@ with tab_trend:
 # ----------------------------------------------------------------------
 with tab_data:
     st.subheader("Raw historical data")
-    st.dataframe(df.reset_index(), hide_index=True, width="stretch")
+    st.dataframe(df.reset_index(), hide_index=True, use_container_width=True)
 
     st.subheader("Data quality summary")
     dq = pd.DataFrame({
@@ -793,7 +677,7 @@ with tab_data:
         "Mean": [round(df[c].mean(), 1) for c in METRICS],
         "Missing months": [int(df[c].isna().sum()) for c in METRICS],
     })
-    st.dataframe(dq, hide_index=True, width="stretch")
+    st.dataframe(dq, hide_index=True, use_container_width=True)
 
     full_range = pd.date_range(df.index.min(), df.index.max(), freq="MS")
     gap_count = len(full_range) - len(df.index)
