@@ -1,0 +1,4 @@
+model,MAE,RMSE,MAPE_%
+Seasonal Naive,33.79,38.56,6.28
+SARIMA,15.9,20.28,2.86
+Random Forest (lag features),25.5,36.63,4.55
