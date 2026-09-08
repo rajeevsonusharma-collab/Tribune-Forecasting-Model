@@ -16,6 +16,7 @@ Expects, in the same folder:
 """
 
 import os
+import hmac
 import warnings
 
 import joblib
@@ -242,6 +243,44 @@ def style_fig(fig: go.Figure, title: str, y_title: str) -> go.Figure:
         margin=dict(t=55, l=10, r=10, b=10),
     )
     return fig
+
+
+# ----------------------------------------------------------------------
+# Authentication
+# ----------------------------------------------------------------------
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
+
+configured_password = st.secrets.get("APP_PASSWORD", "")
+if not configured_password:
+    st.error("Authentication is not configured. Add APP_PASSWORD to Streamlit secrets before starting the app.")
+    st.stop()
+
+if not st.session_state.authenticated:
+    st.markdown('<div class="login-page">', unsafe_allow_html=True)
+    _, login_column, _ = st.columns([1, 1.15, 1])
+    with login_column:
+        st.markdown(
+            """
+            <div class="login-form-panel">
+                <div class="eyebrow">Private newsroom workspace</div>
+                <h1>Sign in</h1>
+                <p class="welcome-message">Enter the workspace password to open the forecasting console.</p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        with st.form("password_login"):
+            st.markdown('<div class="field-label">Workspace password</div>', unsafe_allow_html=True)
+            entered_password = st.text_input("Workspace password", type="password", label_visibility="collapsed")
+            submitted = st.form_submit_button("Enter", use_container_width=True)
+            if submitted:
+                st.session_state.authenticated = hmac.compare_digest(entered_password, configured_password)
+                if not st.session_state.authenticated:
+                    st.error("That password was not accepted.")
+        if not st.session_state.authenticated:
+            st.stop()
+    st.markdown('</div>', unsafe_allow_html=True)
 
 
 # ----------------------------------------------------------------------
