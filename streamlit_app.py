@@ -876,7 +876,7 @@ with tab_forecast:
                 pass
 
     fig = style_fig(fig, f"{label} — history & {horizon}-month forecast", f"{label} ({unit})")
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
     st.subheader("Forecast table")
     forecast_table = pd.DataFrame({
@@ -885,7 +885,7 @@ with tab_forecast:
         f"Lower ({confidence}%)": lower.values.round(1),
         f"Upper ({confidence}%)": upper.values.round(1),
     })
-    st.dataframe(forecast_table, hide_index=True, use_container_width=True)
+    st.dataframe(forecast_table, hide_index=True, width="stretch")
 
     csv_bytes = forecast_table.to_csv(index=False).encode("utf-8")
     st.download_button(
@@ -925,7 +925,7 @@ with tab_backtest:
             metrics_df.style.apply(
                 lambda r: ["background-color:#E8F7EF" if r["Model"] == best_model else "" for _ in r], axis=1
             ),
-            hide_index=True, use_container_width=True,
+            hide_index=True, width="stretch",
         )
         st.caption(f"✅ Lowest error on this window: **{best_model}**. MAPE = mean absolute % error, lower is better.")
 
@@ -940,7 +940,7 @@ with tab_backtest:
         for name, curve in curves.items():
             fig2.add_trace(go.Scatter(x=curve.index, y=curve.values, name=name, line=dict(color=palette.get(name, "#999"), width=2, dash="dot")))
         fig2 = style_fig(fig2, f"Holdout check — predicted vs. actual ({label})", f"{label} ({unit})")
-        st.plotly_chart(fig2, use_container_width=True)
+        st.plotly_chart(fig2, width="stretch")
 
 # ----------------------------------------------------------------------
 # TAB 3 — Trend & Seasonality
@@ -973,7 +973,7 @@ with tab_trend:
         )
         decomp_fig.update_xaxes(gridcolor=COLORS["hairline"])
         decomp_fig.update_yaxes(gridcolor=COLORS["hairline"])
-        st.plotly_chart(decomp_fig, use_container_width=True)
+        st.plotly_chart(decomp_fig, width="stretch")
 
         seasonal_swing = stl.seasonal.max() - stl.seasonal.min()
         st.caption(
@@ -986,7 +986,7 @@ with tab_trend:
 # ----------------------------------------------------------------------
 with tab_data:
     st.subheader("Raw historical data")
-    st.dataframe(df.reset_index(), hide_index=True, use_container_width=True)
+    st.dataframe(df.reset_index(), hide_index=True, width="stretch")
 
     st.subheader("Data quality summary")
     dq = pd.DataFrame({
@@ -996,7 +996,7 @@ with tab_data:
         "Mean": [round(df[c].mean(), 1) for c in METRICS],
         "Missing months": [int(df[c].isna().sum()) for c in METRICS],
     })
-    st.dataframe(dq, hide_index=True, use_container_width=True)
+    st.dataframe(dq, hide_index=True, width="stretch")
 
     full_range = pd.date_range(df.index.min(), df.index.max(), freq="MS")
     gap_count = len(full_range) - len(df.index)
