@@ -10,8 +10,6 @@ and a trend/seasonality decomposition view.
 Run with:
     streamlit run streamlit_app.py
 
-Set APP_EMAIL and APP_PASSWORD in the environment or Streamlit secrets before starting.
-
 Expects these files in the same folder (all produced by
 tribune_forecasting_model.ipynb):
     tribune_trust_synthetic_data.csv
@@ -22,7 +20,6 @@ Expects, in the same folder:
     models/sarima_<metric>.joblib      (optional — app fits live if missing)
 """
 
-import hmac
 import os
 import warnings
 from pathlib import Path
@@ -52,14 +49,6 @@ REQUIRED_COLUMNS = [
     "Subscription_Revenue_INR_Lakh",
     "Total_Revenue_INR_Lakh",
 ]
-REQUIRED_COLUMNS = [
-    "Month",
-    "Print_Circulation_Copies_Per_Day",
-    "Digital_Unique_Visitors",
-    "Ad_Revenue_INR_Lakh",
-    "Subscription_Revenue_INR_Lakh",
-    "Total_Revenue_INR_Lakh",
-]
 METRICS = {
     "Total_Revenue_INR_Lakh": ("Total Revenue", "INR Lakh", "🧾"),
     "Ad_Revenue_INR_Lakh": ("Ad Revenue", "INR Lakh", "📢"),
@@ -81,110 +70,6 @@ COLORS = {
 }
 
 st.set_page_config(page_title="The Tribune Trust — Forecast Console", page_icon="📰", layout="wide")
-
-# ----------------------------------------------------------------------
-# Theme — fonts, masthead banner, KPI cards, chart chrome
-# ----------------------------------------------------------------------
-st.markdown(
-    f"""
-    <style>
-    @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap');
-
-    html, body, [class*="css"] {{ font-family: 'Inter', sans-serif; }}
-    .stApp {{ background-color: {COLORS['paper']}; }}
-
-    /* ---- masthead ---- */
-    .masthead {{
-        background: linear-gradient(135deg, {COLORS['ink']} 0%, #1F2340 100%);
-        border-radius: 14px;
-        padding: 28px 34px 22px 34px;
-        margin-bottom: 22px;
-        border-bottom: 4px solid {COLORS['gold']};
-    }}
-    .masthead h1 {{
-        font-family: 'Playfair Display', serif;
-        color: #FFFFFF;
-        font-size: 2.15rem;
-        font-weight: 800;
-        margin: 0;
-        letter-spacing: 0.2px;
-    }}
-    .masthead p {{
-        color: #C7CAE4;
-        font-size: 0.98rem;
-        margin: 6px 0 0 0;
-    }}
-
-    /* ---- sidebar wordmark chip ---- */
-    .sb-chip {{
-        background: {COLORS['ink']};
-        border-radius: 10px;
-        padding: 14px 16px;
-        margin-bottom: 16px;
-        border-left: 4px solid {COLORS['red']};
-    }}
-    .sb-chip h3 {{
-        font-family: 'Playfair Display', serif;
-        color: #FFFFFF;
-        font-size: 1.05rem;
-        margin: 0;
-    }}
-    .sb-chip span {{
-        color: #9EA3C4;
-        font-size: 0.78rem;
-    }}
-
-    /* ---- KPI cards ---- */
-    .kpi-card {{
-        background: {COLORS['card']};
-        border: 1px solid {COLORS['hairline']};
-        border-left: 5px solid var(--accent, {COLORS['red']});
-        border-radius: 10px;
-        padding: 14px 16px;
-        height: 100%;
-    }}
-    .kpi-label {{
-        color: {COLORS['soft']};
-        font-size: 0.8rem;
-        font-weight: 500;
-        margin-bottom: 4px;
-    }}
-    .kpi-value {{
-        font-size: 1.55rem;
-        font-weight: 700;
-        color: {COLORS['ink']};
-        line-height: 1.15;
-    }}
-    .kpi-sub {{
-        font-size: 0.78rem;
-        color: {COLORS['soft']};
-        margin-top: 3px;
-    }}
-
-    /* ---- tabs ---- */
-    .stTabs [data-baseweb="tab-list"] {{ gap: 6px; }}
-    .stTabs [data-baseweb="tab"] {{
-        font-weight: 600;
-        font-size: 0.95rem;
-        color: {COLORS['soft']};
-    }}
-    .stTabs [aria-selected="true"] {{
-        color: {COLORS['ink']} !important;
-        border-bottom-color: {COLORS['red']} !important;
-    }}
-
-    .note-box {{
-        background: #FFF7ED;
-        border: 1px solid #F3D9A8;
-        border-radius: 8px;
-        padding: 10px 14px;
-        font-size: 0.85rem;
-        color: {COLORS['ink']};
-    }}
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
 
 
 def kpi_card(label: str, value: str, sub: str, accent: str):
@@ -473,94 +358,6 @@ st.markdown(
     """,
     unsafe_allow_html=True,
 )
-
-
-def get_configured_credentials() -> tuple[str | None, str | None]:
-    email = os.getenv("APP_EMAIL")
-    password = os.getenv("APP_PASSWORD")
-    try:
-        email = email or st.secrets.get("APP_EMAIL")
-        password = password or st.secrets.get("APP_PASSWORD")
-    except Exception:
-        pass
-    return email, password
-
-
-def require_login() -> None:
-    if st.session_state.get("authenticated", False):
-        if st.sidebar.button("Log out"):
-            st.session_state.authenticated = False
-            st.rerun()
-        st.sidebar.caption("Signed in")
-        return
-
-    st.markdown('<div class="login-page">', unsafe_allow_html=True)
-    visual_column, form_column = st.columns([1.1, 0.9], gap="large")
-    with visual_column:
-        st.markdown(
-            """
-            <div class="login-visual">
-                <div class="news-masthead">
-                    <div class="news-brand">The Tribune Trust</div>
-                    <div class="news-edition">Forecast desk<br>Edition 01</div>
-                </div>
-                <div class="news-rule"><span>Business intelligence</span><span>Since 1881</span></div>
-                <div class="login-kicker">Private forecast desk</div>
-                <h2>Read the signal before it becomes the story.</h2>
-                <p>One calm view of circulation, audience, and revenue trends, shaped for confident decisions.</p>
-                <div class="signal-chart" aria-label="Illustrative upward forecast chart">
-                    <span></span><span></span><span></span><span></span>
-                    <span></span><span></span><span></span><span></span>
-                </div>
-                <div class="signal-caption"><span>Recent signal</span><span>12-month outlook</span></div>
-                <div class="signal-summary">
-                    <div><strong>+12.4%</strong><span>Revenue trend</span></div>
-                    <div><strong>+8.7%</strong><span>Audience signal</span></div>
-                    <div><strong>80%</strong><span>Confidence view</span></div>
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-    with form_column:
-        st.markdown('<div class="login-form-panel">', unsafe_allow_html=True)
-        st.markdown('<div class="eyebrow">PRIVATE FORECAST DESK</div>', unsafe_allow_html=True)
-        st.title("Sign in")
-        st.markdown(
-            '<div class="welcome-message"><strong>Welcome back.</strong> Your newsroom intelligence desk is ready.</div>',
-            unsafe_allow_html=True,
-        )
-        st.markdown(
-            '<div class="masthead-note">Enter your authorised email and password to continue.</div>',
-            unsafe_allow_html=True,
-        )
-    configured_email, configured_password = get_configured_credentials()
-    with st.form("login_form"):
-        email_column, password_column = st.columns(2)
-        with email_column:
-            email = st.text_input("Email", placeholder="you@example.com", autocomplete="username")
-        with password_column:
-            password = st.text_input("Password", type="password", placeholder="Enter your password", autocomplete="current-password")
-        submitted = st.form_submit_button("Sign in", type="primary", width="stretch")
-    if submitted:
-        credentials_configured = configured_email is not None and configured_password is not None
-        email_matches = credentials_configured and hmac.compare_digest(email.strip().casefold(), configured_email.casefold())
-        password_matches = credentials_configured and hmac.compare_digest(password, configured_password)
-        if email_matches and password_matches:
-            st.session_state.authenticated = True
-            st.rerun()
-        elif not credentials_configured:
-            st.error(
-                "Login is unavailable until APP_EMAIL and APP_PASSWORD are configured. "
-                "Add them to Streamlit Secrets or set both environment variables, then restart the app."
-            )
-        else:
-            st.error("Incorrect email or password.")
-    st.markdown('</div></div>', unsafe_allow_html=True)
-    st.stop()
-
-
-require_login()
 
 
 # ----------------------------------------------------------------------
