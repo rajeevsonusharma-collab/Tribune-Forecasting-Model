@@ -307,6 +307,86 @@ st.markdown(
         margin-bottom: 0.85rem;
     }
     .masthead-note { color: var(--muted); font-size: 1rem; margin-bottom: 2rem; }
+    .login-page {
+        max-width: 1120px;
+        margin: 3vh auto 0;
+    }
+    .login-visual {
+        min-height: 455px;
+        padding: 2.5rem;
+        border-radius: 18px;
+        color: #fff;
+        overflow: hidden;
+        position: relative;
+        background: linear-gradient(145deg, #14162a 0%, #242849 70%, #263e59 100%);
+        box-shadow: 0 22px 55px rgba(20, 22, 42, 0.2);
+    }
+    .login-visual::after {
+        content: "";
+        position: absolute;
+        width: 230px;
+        height: 230px;
+        right: -74px;
+        top: -76px;
+        border: 1px solid rgba(242, 169, 0, 0.45);
+        border-radius: 50%;
+        box-shadow: 0 0 0 22px rgba(242, 169, 0, 0.05), 0 0 0 44px rgba(242, 169, 0, 0.04);
+    }
+    .login-kicker {
+        color: #f2a900;
+        font-family: 'DM Mono', monospace;
+        font-size: 0.72rem;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+    }
+    .login-visual h2 {
+        color: #fff;
+        font-family: 'Playfair Display', serif;
+        font-size: clamp(2rem, 4vw, 3.6rem);
+        line-height: 1.02;
+        margin: 1.1rem 0 0.8rem;
+        max-width: 440px;
+    }
+    .login-visual p { color: #c7cae4; max-width: 390px; line-height: 1.6; }
+    .signal-chart {
+        height: 130px;
+        display: flex;
+        align-items: end;
+        gap: 9px;
+        margin-top: 2.4rem;
+        padding: 1rem 0 0;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    }
+    .signal-chart span {
+        flex: 1;
+        min-width: 12px;
+        border-radius: 5px 5px 0 0;
+        background: linear-gradient(180deg, #f2a900, #e63946);
+        opacity: 0.9;
+    }
+    .signal-chart span:nth-child(2n) { background: linear-gradient(180deg, #1fb6a6, #167b8a); }
+    .signal-chart span:nth-child(1) { height: 32%; }
+    .signal-chart span:nth-child(2) { height: 44%; }
+    .signal-chart span:nth-child(3) { height: 39%; }
+    .signal-chart span:nth-child(4) { height: 60%; }
+    .signal-chart span:nth-child(5) { height: 55%; }
+    .signal-chart span:nth-child(6) { height: 76%; }
+    .signal-chart span:nth-child(7) { height: 68%; }
+    .signal-chart span:nth-child(8) { height: 94%; }
+    .login-form-panel {
+        min-height: 455px;
+        padding: 2.5rem 2.2rem;
+        border: 1px solid #e7e1d3;
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.82);
+        box-shadow: 0 22px 55px rgba(20, 22, 42, 0.08);
+    }
+    .login-form-panel h1 { font-size: clamp(2rem, 4vw, 3.25rem); }
+    @media (max-width: 760px) {
+        .login-page { margin-top: 1rem; }
+        .login-visual, .login-form-panel { min-height: auto; padding: 1.7rem; }
+        .signal-chart { margin-top: 1.6rem; }
+    }
     </style>
     """,
     unsafe_allow_html=True,
@@ -332,12 +412,31 @@ def require_login() -> None:
         st.sidebar.caption("Signed in")
         return
 
-    st.markdown('<div class="eyebrow">THE TRIBUNE TRUST / PRIVATE FORECAST DESK</div>', unsafe_allow_html=True)
-    st.title("Sign in to the forecast desk")
-    st.markdown(
-        '<div class="masthead-note">Enter your authorised email and password to view forecasting data and model outputs.</div>',
-        unsafe_allow_html=True,
-    )
+    st.markdown('<div class="login-page">', unsafe_allow_html=True)
+    visual_column, form_column = st.columns([1.1, 0.9], gap="large")
+    with visual_column:
+        st.markdown(
+            """
+            <div class="login-visual">
+                <div class="login-kicker">The Tribune Trust / Private desk</div>
+                <h2>Read the signal before it becomes the story.</h2>
+                <p>One calm view of circulation, audience, and revenue trends, shaped for confident decisions.</p>
+                <div class="signal-chart" aria-label="Illustrative upward forecast chart">
+                    <span></span><span></span><span></span><span></span>
+                    <span></span><span></span><span></span><span></span>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    with form_column:
+        st.markdown('<div class="login-form-panel">', unsafe_allow_html=True)
+        st.markdown('<div class="eyebrow">PRIVATE FORECAST DESK</div>', unsafe_allow_html=True)
+        st.title("Sign in")
+        st.markdown(
+            '<div class="masthead-note">Enter your authorised email and password to continue.</div>',
+            unsafe_allow_html=True,
+        )
     configured_email, configured_password = get_configured_credentials()
     with st.form("login_form"):
         email_column, password_column = st.columns(2)
@@ -357,6 +456,7 @@ def require_login() -> None:
             st.error("Login is unavailable until APP_EMAIL and APP_PASSWORD are configured.")
         else:
             st.error("Incorrect email or password.")
+    st.markdown('</div></div>', unsafe_allow_html=True)
     st.stop()
 
 
