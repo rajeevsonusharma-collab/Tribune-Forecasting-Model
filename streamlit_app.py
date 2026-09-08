@@ -373,6 +373,46 @@ st.markdown(
     .signal-chart span:nth-child(6) { height: 76%; }
     .signal-chart span:nth-child(7) { height: 68%; }
     .signal-chart span:nth-child(8) { height: 94%; }
+    .signal-caption {
+        display: flex;
+        justify-content: space-between;
+        margin-top: 0.55rem;
+        color: #9ea3c4;
+        font-family: 'DM Mono', monospace;
+        font-size: 0.66rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+    }
+    .signal-summary {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 0.6rem;
+        margin-top: 1.25rem;
+    }
+    .signal-summary div {
+        padding: 0.7rem 0.75rem;
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        border-radius: 9px;
+        background: rgba(255, 255, 255, 0.06);
+    }
+    .signal-summary strong {
+        display: block;
+        color: #fff;
+        font-size: 1.1rem;
+    }
+    .signal-summary span {
+        color: #9ea3c4;
+        font-family: 'DM Mono', monospace;
+        font-size: 0.62rem;
+        text-transform: uppercase;
+    }
+    .field-label {
+        color: #6b7099;
+        font-family: 'DM Mono', monospace;
+        font-size: 0.7rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+    }
     .login-form-panel {
         min-height: 455px;
         padding: 2.5rem 2.2rem;
@@ -425,6 +465,12 @@ def require_login() -> None:
                     <span></span><span></span><span></span><span></span>
                     <span></span><span></span><span></span><span></span>
                 </div>
+                <div class="signal-caption"><span>Recent signal</span><span>12-month outlook</span></div>
+                <div class="signal-summary">
+                    <div><strong>+12.4%</strong><span>Revenue trend</span></div>
+                    <div><strong>+8.7%</strong><span>Audience signal</span></div>
+                    <div><strong>80%</strong><span>Confidence view</span></div>
+                </div>
             </div>
             """,
             unsafe_allow_html=True,
@@ -441,9 +487,11 @@ def require_login() -> None:
     with st.form("login_form"):
         email_column, password_column = st.columns(2)
         with email_column:
-            email = st.text_input("Email", autocomplete="username")
+            st.markdown('<div class="field-label">Email</div>', unsafe_allow_html=True)
+            email = st.text_input("Email address", label_visibility="collapsed", autocomplete="username")
         with password_column:
-            password = st.text_input("Password", type="password", autocomplete="current-password")
+            st.markdown('<div class="field-label">Password</div>', unsafe_allow_html=True)
+            password = st.text_input("Password", type="password", label_visibility="collapsed", autocomplete="current-password")
         submitted = st.form_submit_button("Sign in", type="primary", width="stretch")
     if submitted:
         credentials_configured = configured_email is not None and configured_password is not None
