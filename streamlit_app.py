@@ -280,6 +280,21 @@ st.markdown(
         padding: 0.7rem 1.2rem;
     }
     [data-testid="stDownloadButton"] button:hover { background: #d9472c; color: #fff; }
+    [data-testid="stTextInput"] input {
+        background: #fff7ed;
+        border: 1px solid #f3d9a8;
+        border-radius: 8px;
+    }
+    [data-testid="stFormSubmitButton"] button {
+        background: #e63946;
+        border: 0;
+        color: #fff;
+        font-weight: 700;
+    }
+    [data-testid="stFormSubmitButton"] button:hover {
+        background: #bd2633;
+        color: #fff;
+    }
     [data-testid="stDataFrame"] { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
     [data-testid="stExpander"] { border: 1px solid var(--line); border-radius: 12px; background: rgba(255, 255, 255, 0.58); }
     .eyebrow {
@@ -325,8 +340,11 @@ def require_login() -> None:
     )
     configured_email, configured_password = get_configured_credentials()
     with st.form("login_form"):
-        email = st.text_input("Email", autocomplete="username")
-        password = st.text_input("Password", type="password", autocomplete="current-password")
+        email_column, password_column = st.columns(2)
+        with email_column:
+            email = st.text_input("Email", autocomplete="username")
+        with password_column:
+            password = st.text_input("Password", type="password", autocomplete="current-password")
         submitted = st.form_submit_button("Sign in", type="primary", width="stretch")
     if submitted:
         credentials_configured = configured_email is not None and configured_password is not None
