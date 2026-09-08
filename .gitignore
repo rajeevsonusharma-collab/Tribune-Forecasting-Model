@@ -1,0 +1,4 @@
+# Local secrets and generated Python files
+.streamlit/secrets.toml
+__pycache__/
+*.py[cod]

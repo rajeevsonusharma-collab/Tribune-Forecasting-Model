@@ -457,6 +457,13 @@ st.markdown(
         box-shadow: 0 22px 55px rgba(20, 22, 42, 0.08);
     }
     .login-form-panel h1 { font-size: clamp(2rem, 4vw, 3.25rem); }
+    .welcome-message {
+        margin: -0.15rem 0 0.8rem;
+        color: #15343b;
+        font-size: 0.98rem;
+        line-height: 1.5;
+    }
+    .welcome-message strong { color: #e63946; }
     @media (max-width: 760px) {
         .login-page { margin-top: 1rem; }
         .login-visual, .login-form-panel { min-height: auto; padding: 1.7rem; }
@@ -520,6 +527,10 @@ def require_login() -> None:
         st.markdown('<div class="eyebrow">PRIVATE FORECAST DESK</div>', unsafe_allow_html=True)
         st.title("Sign in")
         st.markdown(
+            '<div class="welcome-message"><strong>Welcome back.</strong> Your newsroom intelligence desk is ready.</div>',
+            unsafe_allow_html=True,
+        )
+        st.markdown(
             '<div class="masthead-note">Enter your authorised email and password to continue.</div>',
             unsafe_allow_html=True,
         )
@@ -527,11 +538,9 @@ def require_login() -> None:
     with st.form("login_form"):
         email_column, password_column = st.columns(2)
         with email_column:
-            st.markdown('<div class="field-label">Email</div>', unsafe_allow_html=True)
-            email = st.text_input("Email address", label_visibility="collapsed", autocomplete="username")
+            email = st.text_input("Email", placeholder="you@example.com", autocomplete="username")
         with password_column:
-            st.markdown('<div class="field-label">Password</div>', unsafe_allow_html=True)
-            password = st.text_input("Password", type="password", label_visibility="collapsed", autocomplete="current-password")
+            password = st.text_input("Password", type="password", placeholder="Enter your password", autocomplete="current-password")
         submitted = st.form_submit_button("Sign in", type="primary", width="stretch")
     if submitted:
         credentials_configured = configured_email is not None and configured_password is not None
@@ -541,7 +550,10 @@ def require_login() -> None:
             st.session_state.authenticated = True
             st.rerun()
         elif not credentials_configured:
-            st.error("Login is unavailable until APP_EMAIL and APP_PASSWORD are configured.")
+            st.error(
+                "Login is unavailable until APP_EMAIL and APP_PASSWORD are configured. "
+                "Add them to Streamlit Secrets or set both environment variables, then restart the app."
+            )
         else:
             st.error("Incorrect email or password.")
     st.markdown('</div></div>', unsafe_allow_html=True)
