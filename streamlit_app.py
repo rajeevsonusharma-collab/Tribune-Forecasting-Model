@@ -171,7 +171,7 @@ st.markdown(
 
 
 # ----------------------------------------------------------------------
-# Access control — simple shared-password gate
+# Password configuration
 # ----------------------------------------------------------------------
 def _configured_password():
     try:
@@ -179,42 +179,6 @@ def _configured_password():
     except Exception:
         pw = None
     return pw or os.environ.get("TRIBUNE_APP_PASSWORD")
-
-
-def require_password():
-    if st.session_state.get("authed"):
-        return
-
-    st.markdown(
-        """
-        <div class="masthead" style="max-width:440px;margin:70px auto 18px auto;">
-            <h1 style="font-size:1.5rem;">📰 The Tribune Trust</h1>
-            <p>Forecasting Console — sign in to continue</p>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-    configured = _configured_password()
-    _, mid, _ = st.columns([1, 1.2, 1])
-    with mid:
-        pw = st.text_input("Password", type="password", label_visibility="collapsed", placeholder="Password", key="login_pw")
-        submitted = st.button("Enter", use_container_width=True)
-        if submitted:
-            if configured and pw == configured:
-                st.session_state["authed"] = True
-                st.rerun()
-            else:
-                st.error("Incorrect password.")
-        if not configured:
-            st.caption(
-                "No password is configured yet. Set `APP_PASSWORD` in `.streamlit/secrets.toml` "
-                "(recommended — see `secrets.toml.example`) or the `TRIBUNE_APP_PASSWORD` "
-                "environment variable to enable this gate."
-            )
-    st.stop()
-
-
-require_password()
 
 
 def kpi_card(label: str, value: str, sub: str, accent: str):
@@ -251,7 +215,7 @@ def style_fig(fig: go.Figure, title: str, y_title: str) -> go.Figure:
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
 
-configured_password = st.secrets.get("APP_PASSWORD", "")
+configured_password = _configured_password()
 if not configured_password:
     st.error("Authentication is not configured. Add APP_PASSWORD to Streamlit secrets before starting the app.")
     st.stop()
