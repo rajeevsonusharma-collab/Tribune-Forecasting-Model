@@ -10,7 +10,7 @@ and a trend/seasonality decomposition view.
 Run with:
     streamlit run streamlit_app.py
 
-Set APP_PASSWORD in the environment or Streamlit secrets before starting.
+Set APP_EMAIL and APP_PASSWORD in the environment or Streamlit secrets before starting.
 
 Expects these files in the same folder (all produced by
 tribune_forecasting_model.ipynb):
@@ -298,14 +298,15 @@ st.markdown(
 )
 
 
-def get_configured_password() -> str | None:
+def get_configured_credentials() -> tuple[str | None, str | None]:
+    email = os.getenv("APP_EMAIL")
     password = os.getenv("APP_PASSWORD")
-    if password:
-        return password
     try:
-        return st.secrets["APP_PASSWORD"]
+        email = email or st.secrets.get("APP_EMAIL")
+        password = password or st.secrets.get("APP_PASSWORD")
     except Exception:
-        return None
+        pass
+    return email, password
 
 
 def require_login() -> None:
@@ -319,21 +320,25 @@ def require_login() -> None:
     st.markdown('<div class="eyebrow">THE TRIBUNE TRUST / PRIVATE FORECAST DESK</div>', unsafe_allow_html=True)
     st.title("Sign in to the forecast desk")
     st.markdown(
-        '<div class="masthead-note">Enter the authorised access password to view forecasting data and model outputs.</div>',
+        '<div class="masthead-note">Enter your authorised email and password to view forecasting data and model outputs.</div>',
         unsafe_allow_html=True,
     )
-    configured_password = get_configured_password()
+    configured_email, configured_password = get_configured_credentials()
     with st.form("login_form"):
-        password = st.text_input("Access password", type="password")
+        email = st.text_input("Email", autocomplete="username")
+        password = st.text_input("Password", type="password", autocomplete="current-password")
         submitted = st.form_submit_button("Sign in", type="primary", width="stretch")
     if submitted:
-        if configured_password and hmac.compare_digest(password, configured_password):
+        credentials_configured = configured_email is not None and configured_password is not None
+        email_matches = credentials_configured and hmac.compare_digest(email.strip().casefold(), configured_email.casefold())
+        password_matches = credentials_configured and hmac.compare_digest(password, configured_password)
+        if email_matches and password_matches:
             st.session_state.authenticated = True
             st.rerun()
-        elif configured_password is None:
-            st.error("Login is unavailable until APP_PASSWORD is configured.")
+        elif not credentials_configured:
+            st.error("Login is unavailable until APP_EMAIL and APP_PASSWORD are configured.")
         else:
-            st.error("Incorrect password.")
+            st.error("Incorrect email or password.")
     st.stop()
 
 
