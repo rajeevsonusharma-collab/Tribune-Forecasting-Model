@@ -339,6 +339,41 @@ st.markdown(
         letter-spacing: 0.14em;
         text-transform: uppercase;
     }
+    .news-masthead {
+        display: flex;
+        align-items: end;
+        justify-content: space-between;
+        gap: 1rem;
+        padding-bottom: 0.8rem;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.24);
+    }
+    .news-brand {
+        color: #fff;
+        font-family: 'Playfair Display', serif;
+        font-size: clamp(1.55rem, 3vw, 2.2rem);
+        font-weight: 800;
+        letter-spacing: 0.02em;
+        line-height: 1;
+    }
+    .news-edition {
+        color: #c7cae4;
+        font-family: 'DM Mono', monospace;
+        font-size: 0.62rem;
+        letter-spacing: 0.08em;
+        line-height: 1.5;
+        text-align: right;
+        text-transform: uppercase;
+    }
+    .news-rule {
+        display: flex;
+        justify-content: space-between;
+        color: #9ea3c4;
+        font-family: 'DM Mono', monospace;
+        font-size: 0.62rem;
+        letter-spacing: 0.08em;
+        margin-top: 0.7rem;
+        text-transform: uppercase;
+    }
     .login-visual h2 {
         color: #fff;
         font-family: 'Playfair Display', serif;
@@ -458,7 +493,12 @@ def require_login() -> None:
         st.markdown(
             """
             <div class="login-visual">
-                <div class="login-kicker">The Tribune Trust / Private desk</div>
+                <div class="news-masthead">
+                    <div class="news-brand">The Tribune Trust</div>
+                    <div class="news-edition">Forecast desk<br>Edition 01</div>
+                </div>
+                <div class="news-rule"><span>Business intelligence</span><span>Since 1881</span></div>
+                <div class="login-kicker">Private forecast desk</div>
                 <h2>Read the signal before it becomes the story.</h2>
                 <p>One calm view of circulation, audience, and revenue trends, shaped for confident decisions.</p>
                 <div class="signal-chart" aria-label="Illustrative upward forecast chart">
