@@ -16,7 +16,6 @@ Expects, in the same folder:
 """
 
 import os
-import hmac
 import warnings
 
 import joblib
@@ -171,14 +170,141 @@ st.markdown(
 
 
 # ----------------------------------------------------------------------
-# Password configuration
+# Access control — per-user email + password accounts (local SQLite)
+#
+# NOTE on hosting: if this app runs on Streamlit Community Cloud, its local
+# disk is EPHEMERAL — any account created here is lost on the app's next
+# reboot/redeploy/sleep cycle (confirmed Streamlit Cloud behaviour, not a
+# bug in this code). Fine for a demo or an internally-hosted server with a
+# persistent disk; for a production rollout, point AUTH_DB_PATH at a
+# mounted volume or swap the three DB functions below for an external
+# store (Postgres/Supabase/Google Sheets) — the call sites don't change.
 # ----------------------------------------------------------------------
-def _configured_password():
+import binascii
+import hashlib
+import re
+import sqlite3
+
+AUTH_DB_PATH = "tribune_users.db"
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+def _init_auth_db():
+    with sqlite3.connect(AUTH_DB_PATH) as conn:
+        conn.execute(
+            """CREATE TABLE IF NOT EXISTS users (
+                   email TEXT PRIMARY KEY,
+                   salt TEXT NOT NULL,
+                   password_hash TEXT NOT NULL,
+                   created_at TEXT NOT NULL
+               )"""
+        )
+
+
+def _hash_password(password: str, salt: bytes) -> str:
+    return binascii.hexlify(
+        hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, 200_000)
+    ).decode()
+
+
+def create_user(email: str, password: str) -> tuple[bool, str]:
+    email = email.strip().lower()
+    if not _EMAIL_RE.match(email):
+        return False, "Enter a valid email address."
+    if len(password) < 8:
+        return False, "Password must be at least 8 characters."
+    salt = os.urandom(16)
+    pw_hash = _hash_password(password, salt)
     try:
-        pw = st.secrets.get("APP_PASSWORD")
-    except Exception:
-        pw = None
-    return pw or os.environ.get("TRIBUNE_APP_PASSWORD")
+        with sqlite3.connect(AUTH_DB_PATH) as conn:
+            conn.execute(
+                "INSERT INTO users (email, salt, password_hash, created_at) VALUES (?, ?, ?, ?)",
+                (email, binascii.hexlify(salt).decode(), pw_hash, pd.Timestamp.utcnow().isoformat()),
+            )
+        return True, "Account created — you can sign in now."
+    except sqlite3.IntegrityError:
+        return False, "This email is already registered — try signing in instead."
+
+
+def verify_user(email: str, password: str) -> bool:
+    email = email.strip().lower()
+    with sqlite3.connect(AUTH_DB_PATH) as conn:
+        row = conn.execute(
+            "SELECT salt, password_hash FROM users WHERE email = ?", (email,)
+        ).fetchone()
+    if row is None:
+        return False
+    salt_hex, stored_hash = row
+    return _hash_password(password, binascii.unhexlify(salt_hex)) == stored_hash
+
+
+def require_auth():
+    if st.session_state.get("authed"):
+        return
+
+    _init_auth_db()
+    if "auth_mode_radio" not in st.session_state:
+        st.session_state["auth_mode_radio"] = "Sign in"
+    # A widget's own session_state key can't be reassigned after that widget
+    # has already been instantiated in the same run — so a "switch to sign
+    # in" request from the signup branch below is applied here, before the
+    # radio widget is created, via this one-shot flag instead of touching
+    # the widget's key directly mid-run.
+    if st.session_state.pop("_jump_to_signin", False):
+        st.session_state["auth_mode_radio"] = "Sign in"
+
+    st.markdown(
+        """
+        <div class="masthead" style="max-width:440px;margin:60px auto 18px auto;">
+            <h1 style="font-size:1.5rem;">📰 The Tribune Trust</h1>
+            <p>Forecasting Console — sign in to continue</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    _, mid, _ = st.columns([1, 1.2, 1])
+    with mid:
+        mode = st.radio(
+            "mode", ["Sign in", "Create account"],
+            key="auth_mode_radio", horizontal=True, label_visibility="collapsed",
+        )
+
+        if mode == "Sign in":
+            with st.form("signin_form"):
+                email = st.text_input("Email")
+                pw = st.text_input("Password", type="password")
+                submitted = st.form_submit_button("Sign in", use_container_width=True)
+            if submitted:
+                if not email or not pw:
+                    st.error("Enter your email and password.")
+                elif verify_user(email, pw):
+                    st.session_state["authed"] = True
+                    st.session_state["user_email"] = email.strip().lower()
+                    st.rerun()
+                else:
+                    st.error("Incorrect email or password.")
+        else:
+            with st.form("signup_form"):
+                email = st.text_input("Email")
+                pw = st.text_input("Password", type="password", help="At least 8 characters.")
+                pw2 = st.text_input("Confirm password", type="password")
+                submitted = st.form_submit_button("Create account", use_container_width=True)
+            if submitted:
+                if pw != pw2:
+                    st.error("Passwords don't match.")
+                else:
+                    ok, msg = create_user(email, pw)
+                    if ok:
+                        st.success(msg)
+                        st.session_state["_jump_to_signin"] = True
+                        st.rerun()
+                    else:
+                        st.error(msg)
+    st.stop()
+
+
+require_auth()
 
 
 def kpi_card(label: str, value: str, sub: str, accent: str):
@@ -207,44 +333,6 @@ def style_fig(fig: go.Figure, title: str, y_title: str) -> go.Figure:
         margin=dict(t=55, l=10, r=10, b=10),
     )
     return fig
-
-
-# ----------------------------------------------------------------------
-# Authentication
-# ----------------------------------------------------------------------
-if "authenticated" not in st.session_state:
-    st.session_state.authenticated = False
-
-configured_password = _configured_password()
-if not configured_password:
-    st.error("Authentication is not configured. Add APP_PASSWORD to Streamlit secrets before starting the app.")
-    st.stop()
-
-if not st.session_state.authenticated:
-    st.markdown('<div class="login-page">', unsafe_allow_html=True)
-    _, login_column, _ = st.columns([1, 1.15, 1])
-    with login_column:
-        st.markdown(
-            """
-            <div class="login-form-panel">
-                <div class="eyebrow">Private newsroom workspace</div>
-                <h1>Sign in</h1>
-                <p class="welcome-message">Enter the workspace password to open the forecasting console.</p>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-        with st.form("password_login"):
-            st.markdown('<div class="field-label">Workspace password</div>', unsafe_allow_html=True)
-            entered_password = st.text_input("Workspace password", type="password", label_visibility="collapsed")
-            submitted = st.form_submit_button("Enter", width="stretch")
-            if submitted:
-                st.session_state.authenticated = hmac.compare_digest(entered_password, configured_password)
-                if not st.session_state.authenticated:
-                    st.error("That password was not accepted.")
-        if not st.session_state.authenticated:
-            st.stop()
-    st.markdown('</div>', unsafe_allow_html=True)
 
 
 # ----------------------------------------------------------------------
@@ -445,6 +533,13 @@ with st.sidebar:
         unsafe_allow_html=True,
     )
 
+    acc_col, out_col = st.columns([2.4, 1])
+    acc_col.caption(f"Signed in as **{st.session_state.get('user_email', 'unknown')}**")
+    if out_col.button("Log out"):
+        st.session_state["authed"] = False
+        st.session_state.pop("user_email", None)
+        st.rerun()
+
     uploaded = st.file_uploader("Upload your own CSV (same columns)", type=["csv"])
     uploaded_bytes = uploaded.read() if uploaded is not None else None
 
@@ -560,7 +655,7 @@ with tab_forecast:
                 pass
 
     fig = style_fig(fig, f"{label} — history & {horizon}-month forecast", f"{label} ({unit})")
-    st.plotly_chart(fig, width="stretch")
+    st.plotly_chart(fig, use_container_width=True)
 
     st.subheader("Forecast table")
     forecast_table = pd.DataFrame({
@@ -569,7 +664,7 @@ with tab_forecast:
         f"Lower ({confidence}%)": lower.values.round(1),
         f"Upper ({confidence}%)": upper.values.round(1),
     })
-    st.dataframe(forecast_table, hide_index=True, width="stretch")
+    st.dataframe(forecast_table, hide_index=True, use_container_width=True)
 
     csv_bytes = forecast_table.to_csv(index=False).encode("utf-8")
     st.download_button(
@@ -609,7 +704,7 @@ with tab_backtest:
             metrics_df.style.apply(
                 lambda r: ["background-color:#E8F7EF" if r["Model"] == best_model else "" for _ in r], axis=1
             ),
-            hide_index=True, width="stretch",
+            hide_index=True, use_container_width=True,
         )
         st.caption(f"✅ Lowest error on this window: **{best_model}**. MAPE = mean absolute % error, lower is better.")
 
@@ -624,7 +719,7 @@ with tab_backtest:
         for name, curve in curves.items():
             fig2.add_trace(go.Scatter(x=curve.index, y=curve.values, name=name, line=dict(color=palette.get(name, "#999"), width=2, dash="dot")))
         fig2 = style_fig(fig2, f"Holdout check — predicted vs. actual ({label})", f"{label} ({unit})")
-        st.plotly_chart(fig2, width="stretch")
+        st.plotly_chart(fig2, use_container_width=True)
 
 # ----------------------------------------------------------------------
 # TAB 3 — Trend & Seasonality
@@ -657,7 +752,7 @@ with tab_trend:
         )
         decomp_fig.update_xaxes(gridcolor=COLORS["hairline"])
         decomp_fig.update_yaxes(gridcolor=COLORS["hairline"])
-        st.plotly_chart(decomp_fig, width="stretch")
+        st.plotly_chart(decomp_fig, use_container_width=True)
 
         seasonal_swing = stl.seasonal.max() - stl.seasonal.min()
         st.caption(
@@ -670,7 +765,7 @@ with tab_trend:
 # ----------------------------------------------------------------------
 with tab_data:
     st.subheader("Raw historical data")
-    st.dataframe(df.reset_index(), hide_index=True, width="stretch")
+    st.dataframe(df.reset_index(), hide_index=True, use_container_width=True)
 
     st.subheader("Data quality summary")
     dq = pd.DataFrame({
@@ -680,7 +775,7 @@ with tab_data:
         "Mean": [round(df[c].mean(), 1) for c in METRICS],
         "Missing months": [int(df[c].isna().sum()) for c in METRICS],
     })
-    st.dataframe(dq, hide_index=True, width="stretch")
+    st.dataframe(dq, hide_index=True, use_container_width=True)
 
     full_range = pd.date_range(df.index.min(), df.index.max(), freq="MS")
     gap_count = len(full_range) - len(df.index)
